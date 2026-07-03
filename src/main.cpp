@@ -11,7 +11,6 @@
 
 // Setup the LED Matrix
 #define LED_PIN    4
-#define AUDINPIN   3
 #define LED_TYPE    WS2811
 #define COLOR_ORDER GRB
 #define FRAMES_PER_SECOND  30
@@ -51,12 +50,10 @@ uint8_t Brightness = 150;
 uint8_t LEDBrightness[NUM_LEDS] = { BRIGHTNESS,BRIGHTNESS };
 uint8_t LEDMinBrightness[NUM_LEDS] = { BRIGHTNESS,BRIGHTNESS };
 
-// Command loop processing times
+// Command loop processing time: one tick drives pattern compute, eyes,
+// FastLED.show(), and the hue/sat cycle, paced to FRAMES_PER_SECOND.
 unsigned long previousMillis = millis();
-unsigned long interval = 5;
-
-unsigned long LEDUpdateMillis = millis();
-unsigned long LEDUpdateInterval = 20;
+const unsigned long FrameInterval = 1000 / FRAMES_PER_SECOND;
 
 unsigned long FadeMillis = millis();
 unsigned long FadeInterval = 0;
@@ -150,23 +147,15 @@ bool updown = 0;
 // loop() function -- runs repeatedly as long as board is on ---------------
 
 void loop() {
-	if (millis() - previousMillis > interval) {
+	if (millis() - previousMillis > FrameInterval) {
 		//	DataLoop();
 		previousMillis = millis();
 		// Call the current pattern function once, updating the 'leds' array
 		gPatterns[gCurrentPatternNumber]();
-    RandomEyes();
-	}
-
-	if (millis() - LEDUpdateMillis > LEDUpdateInterval) {
-
-		LEDUpdateMillis = millis();
+		RandomEyes();
 		FastLED.show();
-	}
 
-
-	// do some periodic updates
-	EVERY_N_MILLISECONDS(20) {
+		// periodic updates
 		gHue++;  // slowly cycle the "base color" through the rainbow
 		if (updown) {
 			gSat++;

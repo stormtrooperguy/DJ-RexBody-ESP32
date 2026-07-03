@@ -18,3 +18,5 @@ pio device monitor         # serial console
 ```
 
 Source lives in `src/main.cpp`. The random seed uses `esp_random()` instead of the Nano's `analogRead(0)`, since ESP32 doesn't need a floating analog pin to seed randomness.
+
+Pattern updates, eye animation, `FastLED.show()`, and the hue/sat cycle all run off a single tick paced by `FRAMES_PER_SECOND` (30fps), rather than the Nano version's three separately-timed loops.
