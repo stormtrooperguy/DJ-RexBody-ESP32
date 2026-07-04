@@ -1,6 +1,8 @@
 # DJ-RexBody-ESP32
 ESP32 / PlatformIO port of [grnwaveworkshop/DJ-RexBody](https://github.com/grnwaveworkshop/DJ-RexBody), sample code to control DJ-Rex Body LEDs from Grnwave Workshop.
 
+This version is designed to closely resemble the park animatronic. Alternate patterns, colors, etc... in the source sketch have all been removed.
+
 ## Hardware
 
 - **ESP32 development board**
