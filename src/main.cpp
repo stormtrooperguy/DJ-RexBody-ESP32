@@ -15,11 +15,7 @@
 #define COLOR_ORDER GRB
 #define FRAMES_PER_SECOND  30
 
-#define ARRAY_SIZE(A) (sizeof(A) / sizeof((A)[0]))
-
-#define DECAYTIME 80;
-
-// define the 4 LED block starting LED numbers
+// define the 4 LED button starting LED numbers
 #define PanelAStart 0
 #define PanelA1 PanelAStart + 12
 #define PanelA2 PanelA1 + 12
@@ -35,63 +31,48 @@
 #define PanelC2 PanelC1 + 4
 #define PanelC3 PanelC2 + 4
 
+#define cGOLD 0xFFDD88
+#define cWHITE 0xFFFFFF
+#define cBLUE 0x0000FF
+#define cRED 0xFF0000
+
 uint16_t IntervalTime[NUM_LEDS];
 unsigned long LEDMillis[NUM_LEDS];
 bool LEDOn[NUM_LEDS];
-const uint8_t StartLEDNum[9] = {PanelA1, PanelA2, PanelA3, PanelB1, PanelB2, PanelB3, PanelC1, PanelC2, PanelC3};
-uint8_t Bar1Length = 4;
-uint8_t Bar2Length = 4;
-uint8_t Bar3Length = 4;
 
 CRGB DJLEDs[NUM_LEDS];
-uint8_t Brightness = 150;
-#define BLOCKBRIGHTNESS 225
 
 uint8_t LEDBrightness[NUM_LEDS] = { BRIGHTNESS,BRIGHTNESS };
 uint8_t LEDMinBrightness[NUM_LEDS] = { BRIGHTNESS,BRIGHTNESS };
 
-// Command loop processing time: one tick drives pattern compute, eyes,
-// FastLED.show(), and the hue/sat cycle, paced to FRAMES_PER_SECOND.
+// Command loop processing time: one tick drives the button pattern, eyes,
+// and FastLED.show(), paced to FRAMES_PER_SECOND.
 unsigned long previousMillis = millis();
 const unsigned long FrameInterval = 1000 / FRAMES_PER_SECOND;
 
-unsigned long FadeMillis = millis();
-unsigned long FadeInterval = 0;
+// The 9 large buttons (4 LEDs each), one per panel position that's actually
+// wired. Each button is a single fixed color and is only ever fully on or
+// fully off - its 4 LEDs never show different colors from each other.
+#define NUM_BUTTONS 9
+const uint8_t ButtonStart[NUM_BUTTONS] = {PanelA1, PanelA2, PanelA3, PanelB1, PanelB2, PanelB3, PanelC1, PanelC2, PanelC3};
+const CRGB ButtonColor[NUM_BUTTONS]    = {cWHITE,  cBLUE,   cBLUE,   cWHITE,  cBLUE,   cWHITE,  cBLUE,   cBLUE,   cBLUE};
+bool ButtonOn[NUM_BUTTONS];
+unsigned long ButtonCycleMillis = millis();
+unsigned long ButtonCycleInterval = 0;
 
-uint16_t DecayTime = DECAYTIME;
+// The 8 individually-addressable "small" LEDs per panel that we actually use,
+// confirmed by physical LED testing: they're the first 8 LEDs of each panel,
+// right before that panel's buttons. Each panel also wires 12 further LEDs
+// beyond these 8 + the 3 active buttons; those stay dark for now.
+#define NUM_PANELS 3
+#define NUM_SMALL_LEDS_PER_PANEL 8
+const uint8_t SmallLEDStart[NUM_PANELS] = {PanelAStart, PanelBStart, PanelCStart};
+unsigned long SmallLEDCycleMillis = millis();
+unsigned long SmallLEDCycleInterval = 0;
 
-#define cRED 0xFF0000
-#define cBLUE 0x0000FF
-#define cWHITE 0xFFFFFF
-#define cGOLD 0xFFDD88
-
-#define cRED2 0x500000
-#define cBLUE2 0x000055
-#define cWHITE2 0x608888
-
-const CRGB SmallLEDColors[9] = { cRED2, cRED2, cWHITE2, cWHITE2, cBLUE2, cBLUE2, cRED2, cWHITE2, cWHITE2 };
-const CRGB BlockLEDColors[4] = { cRED, cWHITE, cGOLD, cBLUE };
-
-byte LEDIndex = 0;
-bool inout = 0;
-byte State = 0;
-
-// Forward declarations (the Arduino IDE auto-generates these for .ino files;
-// a plain .cpp needs them explicitly since gPatterns references these below).
-void LEDsOff();
-void RandomBlocks2();
-void AllRed();
-void AllGreen();
-void ShortCircuit();
-void ConfettiRedWhite();
-void rainbow();
-void rainbowWithGlitter();
-void confetti();
-void juggle();
-void bpm();
 void RandomEyes();
-void nextPattern();
-void addGlitter(fract8 chanceOfGlitter);
+void ButtonFlicker();
+void SmallLEDTwinkle();
 
 // setup() function -- runs once at startup --------------------------------
 
@@ -99,14 +80,8 @@ void setup() {
 
 	Serial.begin(115200);
 
-	//DataSetup();
-
-	pinMode(13, OUTPUT);
-	digitalWrite(13, HIGH);
-
 	// tell FastLED about the LED strip configuration
 	FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(DJLEDs, NUM_LEDS).setCorrection(TypicalLEDStrip);
-
 
 	// set master brightness control
 	FastLED.setBrightness(BRIGHTNESS);
@@ -121,90 +96,15 @@ void setup() {
 
 }
 
-// List of patterns to cycle through.  Each is defined as a separate function below.
-typedef void (*SimplePatternList[])();
-SimplePatternList gPatterns = {
-  LEDsOff,	// 0
-  RandomBlocks2,
-  AllRed,	// 2
-  AllGreen,	//3
-  ShortCircuit,	// 4
-  ConfettiRedWhite, // 10
-  rainbow,
-  rainbowWithGlitter,
-  confetti,
-  juggle,
-  bpm
-};
-
-uint8_t gCurrentPatternNumber = 1; // Index number of which pattern is current
-
-
-
-uint8_t gHue = 0; // rotating "base color" used by many of the patterns
-uint8_t gSat = 0; // saturation value
-bool updown = 0;
 // loop() function -- runs repeatedly as long as board is on ---------------
 
 void loop() {
 	if (millis() - previousMillis > FrameInterval) {
-		//	DataLoop();
 		previousMillis = millis();
-		// Call the current pattern function once, updating the 'leds' array
-		gPatterns[gCurrentPatternNumber]();
+		ButtonFlicker();
+		SmallLEDTwinkle();
 		RandomEyes();
 		FastLED.show();
-
-		// periodic updates
-		gHue++;  // slowly cycle the "base color" through the rainbow
-		if (updown) {
-			gSat++;
-			if (gSat == 255) updown = 0;
-		}
-		else {
-			gSat--;
-			if (gSat == 0) updown = 1;
-		}
-	}
-	// EVERY_N_SECONDS( 5 ) { nextPattern(); } // change patterns periodically
-
-}
-
-void SetMode(uint16_t mode)
-{
-
-	switch (mode)
-	{
-	case 0: //  LEDs off
-		gCurrentPatternNumber = 0;
-		break;
-	case 1: //  LEDs default
-		gCurrentPatternNumber = 1;
-		break;
-
-	case 99:
-		nextPattern();
-		break;
-	default:
-		break;
-	}
-
-}
-
-void nextPattern()
-{
-	// add one to the current pattern number, and wrap around at the end
-	gCurrentPatternNumber = (gCurrentPatternNumber + 1) % ARRAY_SIZE(gPatterns);
-	// skip 0
-	if (gCurrentPatternNumber == 0) gCurrentPatternNumber = 1;
-}
-
-// Turns on block of 4 LEDs based on start number
-void LEDBlockOn(uint8_t LEDStart, CRGB Color, int Brightness)
-{
-	byte i;
-	for (i = 0; i < 4; i++) {
-		DJLEDs[LEDStart + i] = Color;
 	}
 }
 
@@ -242,350 +142,53 @@ void RandomEyes()
     }
   }
 }
-// Random Blocks
-// 8 LED bars are random individual
-// 4 LED groups are random together as groups of 4.
-void RandomBlocks()
+
+// Button Flicker
+// Every randomized 300-1200ms cycle, re-rolls each of the 9 buttons on or
+// off (instant, no fade). Multiple buttons can be on or off together, but
+// at least one is always forced on so the panels are never fully dark.
+void ButtonFlicker()
 {
-	byte i;
-	byte y;
-	int pos;
+	if (millis() - ButtonCycleMillis > ButtonCycleInterval) {
+		ButtonCycleMillis = millis();
+		ButtonCycleInterval = random(300, 1201);
 
-	// Fade all LEDs
-//	fadeToBlackBy(DJLEDs, NUM_LEDS, 10);
-
-	// Turn On LEDs
-	// Random single bars
-	//int pos = random16(8);
-	for (i = 0; i < 8; i++) {
-		for (y = 0; y < 3; y++) {
-			pos = PanelAStart + i + y * 20;
-
-			if (!LEDOn[pos]) {	// LED off, fade it
-				DJLEDs[pos].fadeToBlackBy(8);
-			}
-			else {
-				//	DJLEDs[pos].fadeLightBy(-5);
-			}
-			if (millis() - LEDMillis[pos] > IntervalTime[pos]) {
-				if (!LEDOn[pos]) { // LED Off - turn in on
-					DJLEDs[pos] = SmallLEDColors[random(0, 9)];// CHSV(random(100, 200), random(0, 200), 255); //CHSV(gHue + random8(64), 200, 0);
-					IntervalTime[pos] = random(500, 2500);
-					LEDMillis[pos] = millis();
-					LEDOn[pos] = 1;
-				}
-				else {	// Turn the LED off
-					IntervalTime[pos] = random(500, 3000);
-					LEDMillis[pos] = millis();
-					LEDOn[pos] = 0;
-				}
-			}
+		bool anyOn = false;
+		for (uint8_t i = 0; i < NUM_BUTTONS; i++) {
+			ButtonOn[i] = random8() < 128;
+			if (ButtonOn[i]) anyOn = true;
+		}
+		if (!anyOn) {
+			ButtonOn[random8(NUM_BUTTONS)] = true;
 		}
 
-	}
-
-	// Large Block LEDs
-	for (i = 0; i < 3; i++) {
-		for (y = 0; y < 3; y++) {
-			pos = PanelA1 + i * 4 + y * 20;
-
-			if (!LEDOn[pos]) {	// LED off, fade it
-				for (byte x = 0; x < 4; x++) {
-					DJLEDs[pos + x].fadeToBlackBy(8);
-				}
+		for (uint8_t i = 0; i < NUM_BUTTONS; i++) {
+			CRGB color = ButtonOn[i] ? ButtonColor[i] : CRGB::Black;
+			for (uint8_t j = 0; j < 4; j++) {
+				DJLEDs[ButtonStart[i] + j] = color;
 			}
-			else {
-				//	DJLEDs[pos].fadeLightBy(-5);
-			}
-			if (millis() - LEDMillis[pos] > IntervalTime[pos]) {
-				if (!LEDOn[pos]) { // LED Off - turn in on
-					byte c = random(0, 3);
-					//Serial.println(c);
-					LEDBlockOn(pos, BlockLEDColors[c], BLOCKBRIGHTNESS);//CHSV(random(100, 200), random(0, 200), 255), 50);
-					IntervalTime[pos] = random(200, 1500);
-					LEDMillis[pos] = millis();
-					LEDOn[pos] = 1;
-				}
-				else {	// Turn the LED off
-					IntervalTime[pos] = random(200, 2000);
-					LEDMillis[pos] = millis();
-					LEDOn[pos] = 0;
-				}
-			}
-		}
-
-	}
-
-}
-
-// Random Blocks
-// 8 LED bars are bars and random individual
-// 4 LED groups are random together as groups of 4.
-void RandomBlocks2()
-{
-	byte i;
-	byte y;
-	int pos;
-
-	// Fade all LEDs
-//	fadeToBlackBy(DJLEDs, NUM_LEDS, 10);
-
-	// Turn On LEDs
-	// Random single bars
-	//int pos = random16(8);
-
-	// Bar 1
-
-	// Blink end LED;
-	pos = PanelAStart + Bar1Length;
-	DJLEDs[pos].fadeToBlackBy(8);
-	if (millis() - LEDMillis[pos] > IntervalTime[pos]) {
-		if (!LEDOn[pos]) { // LED Off - turn in on
-
-
-			IntervalTime[pos] = random(200, 500);
-			LEDMillis[pos] = millis();
-			LEDOn[pos] = 1;
-		}
-		else {	// Turn the LED off
-			DJLEDs[pos] = SmallLEDColors[random(0, 9)];
-			IntervalTime[pos] = random(200, 500);
-			LEDMillis[pos] = millis();
-			LEDOn[pos] = 0;
-		}
-	}
-
-	// Change the Length
-	pos = PanelAStart;
-	if (millis() - LEDMillis[pos] > IntervalTime[pos]) {
-			IntervalTime[pos] = random(1000, 3500);
-			LEDMillis[pos] = millis();
-			Bar1Length = random(1, 7);
-			//Serial.print("bar1length: ");
-			//Serial.println(Bar1Length);
-			for (i = 0; i < 8; i++) {
-				pos = PanelAStart + i;
-				if (i < Bar1Length)	DJLEDs[pos] = cRED2;
-				else DJLEDs[pos] = 0;
-			}
-	}
-
-
-	// Bar 2
-	for (i = 0; i < 8; i++) {
-		//for (y = 1; y < 3; y++) {
-		y = 1;
-			pos = PanelBStart + i;// + y * 20;
-
-			if (!LEDOn[pos]) {	// LED off, fade it
-				DJLEDs[pos].fadeToBlackBy(8);
-			}
-			else {
-				//	DJLEDs[pos].fadeLightBy(-5);
-			}
-			if (millis() - LEDMillis[pos] > IntervalTime[pos]) {
-				if (!LEDOn[pos]) { // LED Off - turn in on
-					DJLEDs[pos] = SmallLEDColors[random(0, 9)];// CHSV(random(100, 200), random(0, 200), 255); //CHSV(gHue + random8(64), 200, 0);
-					IntervalTime[pos] = random(500, 2500);
-					LEDMillis[pos] = millis();
-					LEDOn[pos] = 1;
-				}
-				else {	// Turn the LED off
-					IntervalTime[pos] = random(500, 3000);
-					LEDMillis[pos] = millis();
-					LEDOn[pos] = 0;
-				}
-			}
-		//}
-
-	}
-
-	// Bar 3
-
-// Blink end LED;
-	pos = PanelCStart + Bar3Length;
-	DJLEDs[pos].fadeToBlackBy(8);
-	if (millis() - LEDMillis[pos] > IntervalTime[pos]) {
-		if (!LEDOn[pos]) { // LED Off - turn in on
-
-
-			IntervalTime[pos] = random(200, 500);
-			LEDMillis[pos] = millis();
-			LEDOn[pos] = 1;
-		}
-		else {	// Turn the LED off
-			DJLEDs[pos] = SmallLEDColors[random(0, 9)];
-			IntervalTime[pos] = random(200, 500);
-			LEDMillis[pos] = millis();
-			LEDOn[pos] = 0;
-		}
-	}
-
-	// Change the Length
-	pos = PanelCStart;
-	if (millis() - LEDMillis[pos] > IntervalTime[pos]) {
-		IntervalTime[pos] = random(1000, 3500);
-		LEDMillis[pos] = millis();
-		Bar3Length = random(1, 7);
-		for (i = 0; i < 8; i++) {
-			pos = PanelCStart + i;
-			if (i < Bar3Length)	DJLEDs[pos] = cWHITE2;
-			else DJLEDs[pos] = 0;
-		}
-	}
-
-
-
-	 //Large Block LEDs
-	for (i = 0; i < 9; i++) {
-
-			pos = StartLEDNum[i];
-
-			if (!LEDOn[pos]) {	// LED off, fade it
-				for (byte x = 0; x < 4; x++) {
-					DJLEDs[pos + x].fadeToBlackBy(8);
-				}
-			}
-			else {
-				//	DJLEDs[pos].fadeLightBy(-5);
-			}
-			if (millis() - LEDMillis[pos] > IntervalTime[pos]) {
-				if (!LEDOn[pos]) { // LED Off - turn in on
-					byte c = random(0, 4);
-					//Serial.println(c);
-					LEDBlockOn(pos, BlockLEDColors[c], BLOCKBRIGHTNESS);//CHSV(random(100, 200), random(0, 200), 255), 50);
-					IntervalTime[pos] = random(200, 1500);
-					LEDMillis[pos] = millis();
-					LEDOn[pos] = 1;
-				}
-				else {	// Turn the LED off
-					IntervalTime[pos] = random(200, 2000);
-					LEDMillis[pos] = millis();
-					LEDOn[pos] = 0;
-				}
-			}
-
-
-	}
-
-}
-
-
-void rainbow()
-{
-	// FastLED's built-in rainbow generator
-	fill_rainbow(DJLEDs, NUM_LEDS, gHue, 7);
-
-}
-
-void rainbowWithGlitter()
-{
-	// built-in FastLED rainbow, plus some random sparkly glitter
-	rainbow();
-	addGlitter(80);
-}
-
-void addGlitter(fract8 chanceOfGlitter)
-{
-	if (random8() < chanceOfGlitter) {
-		DJLEDs[random16(NUM_LEDS)] += CRGB::White;
-
-	}
-}
-
-void addGlitter4(fract8 chanceOfGlitter)
-{
-	for (byte i = 0; i < 4; i++) {
-		if (random8() < chanceOfGlitter) {
-			DJLEDs[random16(NUM_LEDS)] += CRGB::White;
-
 		}
 	}
 }
 
-void confetti()
+// Small LED Twinkle
+// Every randomized 150-500ms cycle (faster than the button cycle), each of
+// the 24 small LEDs independently rolls white, red, or off (instant, no fade).
+void SmallLEDTwinkle()
 {
-	// random colored speckles that blink in and fade smoothly
-	fadeToBlackBy(DJLEDs, NUM_LEDS, 10);
+	if (millis() - SmallLEDCycleMillis > SmallLEDCycleInterval) {
+		SmallLEDCycleMillis = millis();
+		SmallLEDCycleInterval = random(150, 501);
 
-	int pos = random16(NUM_LEDS);
-	DJLEDs[pos] += CHSV(gHue + random8(64), 200, 255);
-
-}
-void ConfettiRedWhite()
-{
-	// random colored speckles that blink in and fade smoothly
-	fadeToBlackBy(DJLEDs, NUM_LEDS, 10);
-
-	int pos = random16(NUM_LEDS);
-	DJLEDs[pos] += CHSV(0, gSat, 192);
-
-}
-
-
-void bpm()
-{
-	// colored stripes pulsing at a defined Beats-Per-Minute (BPM)
-	uint8_t BeatsPerMinute = 62;
-	CRGBPalette16 palette = PartyColors_p;
-	uint8_t beat = beatsin8(BeatsPerMinute, 64, 255);
-	for (int i = 0; i < NUM_LEDS; i++) { //9948
-		DJLEDs[i] = ColorFromPalette(palette, gHue + (i * 2), beat - gHue + (i * 10));
-
+		for (uint8_t p = 0; p < NUM_PANELS; p++) {
+			for (uint8_t i = 0; i < NUM_SMALL_LEDS_PER_PANEL; i++) {
+				uint8_t pos = SmallLEDStart[p] + i;
+				switch (random8(3)) {
+					case 0:  DJLEDs[pos] = cWHITE; break;
+					case 1:  DJLEDs[pos] = cRED; break;
+					default: DJLEDs[pos] = CRGB::Black; break;
+				}
+			}
+		}
 	}
-}
-
-void juggle() {
-	// eight colored dots, weaving in and out of sync with each other
-	fadeToBlackBy(DJLEDs, NUM_LEDS, 20);
-
-	byte dothue = 0;
-	for (int i = 0; i < 8; i++) {
-		DJLEDs[beatsin16(i + 7, 0, NUM_LEDS - 1)] |= CHSV(dothue, 200, 255);
-
-		dothue += 32;
-	}
-}
-void AllRed() {
-	fill_solid(DJLEDs, NUM_LEDS, CRGB(255, 0, 0));
-
-}
-
-void AllGreen() {
-	fill_solid(DJLEDs, NUM_LEDS, CRGB(0, 255, 0));
-
-}
-
-void AllBlue() {
-	fill_solid(DJLEDs, NUM_LEDS, CRGB(0, 0, 255));
-
-}
-
-
-
-
-
-
-void ShortCircuit() {
-	if (millis() - FadeMillis > FadeInterval) {
-		addGlitter4(150);
-		DecayTime--;
-		FadeInterval += 4;
-		FadeMillis = millis();
-	}
-
-	if (DecayTime == 0) {
-		DecayTime = DECAYTIME;
-		gCurrentPatternNumber = 0;
-		FadeInterval = 0;
-	}
-	fadeToBlackBy(DJLEDs, NUM_LEDS, 10);
-
-}
-
-void LEDsOff() {
-	//  Turn LEDs Off
-	fadeToBlackBy(DJLEDs, NUM_LEDS, 5);
-
-
 }
