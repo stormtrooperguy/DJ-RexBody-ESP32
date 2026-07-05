@@ -10,7 +10,7 @@ This version is designed to closely resemble the park animatronic. Alternate pat
 - **2x eye LEDs**, WS2811, chained off the end of the last body panel.
 - **5V power supply** for the LED chain, common ground with the ESP32.
 
-Of the 6 buttons per panel, the current firmware only actively drives 3 (12 of the 24 button LEDs), plus the 2 eyes and the 8 small LEDs per panel (see [Small LED Map](#small-led-map)). The remaining 12 LEDs per panel are physically wired and present in the chain - left dark for now as headroom beyond that.
+Of the 6 buttons per panel, the firmware only actively drives 3 (12 of the 24 button LEDs), plus the 2 eyes and the 8 small LEDs per panel (see [Small LED Map](#small-led-map)). The remaining 12 LEDs per panel are physically wired and present in the chain, but are permanently unused by design - not a placeholder for future patterns.
 
 ## Wiring Connections
 
@@ -80,4 +80,4 @@ The button flicker, small LED twinkle, and eye animation all run off a single ti
 
 `SmallLEDTwinkle()` re-rolls all 24 small LEDs on a separate, faster randomized 150-500ms cycle: each LED independently rolls white, red, or off. Unlike the buttons, there's no "keep at least one on" constraint here - all 24 can go dark at once.
 
-The remaining 12 LEDs per panel (36 total) are currently left unlit.
+The remaining 12 LEDs per panel (36 total) are permanently unlit by design.
