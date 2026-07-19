@@ -38,13 +38,13 @@ For reference while testing - the button positions the firmware currently drives
 
 | Button | LED indices | Color |
 |--------|-------------|-------|
-| A1 | 12-15 | White |
-| A2 | 24-27 | Blue |
+| A1 | 12-15 | Blue |
+| A2 | 24-27 | White |
 | A3 | 28-31 | Blue |
 | B1 | 40-43 | White |
-| B2 | 44-47 | Blue |
-| B3 | 48-51 | White |
-| C1 | 84-87 | Blue |
+| B2 | 44-47 | White |
+| B3 | 48-51 | Blue |
+| C1 | 84-87 | White |
 | C2 | 88-91 | Blue |
 | C3 | 92-95 | Blue |
 
