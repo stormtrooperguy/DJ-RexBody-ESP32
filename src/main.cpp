@@ -55,7 +55,7 @@ const unsigned long FrameInterval = 1000 / FRAMES_PER_SECOND;
 // fully off - its 4 LEDs never show different colors from each other.
 #define NUM_BUTTONS 9
 const uint8_t ButtonStart[NUM_BUTTONS] = {PanelA1, PanelA2, PanelA3, PanelB1, PanelB2, PanelB3, PanelC1, PanelC2, PanelC3};
-const CRGB ButtonColor[NUM_BUTTONS]    = {cBLUE,   cWHITE,  cBLUE,   cWHITE,  cWHITE,  cBLUE,   cWHITE,  cBLUE,   cBLUE};
+const CRGB ButtonColor[NUM_BUTTONS]    = {cBLUE,   cBLUE,   cWHITE,  cBLUE,   cWHITE,  cWHITE,  cWHITE,  cBLUE,   cBLUE};
 bool ButtonOn[NUM_BUTTONS];
 unsigned long ButtonCycleMillis = millis();
 unsigned long ButtonCycleInterval = 0;

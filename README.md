@@ -39,14 +39,16 @@ For reference while testing - the button positions the firmware currently drives
 | Button | LED indices | Color |
 |--------|-------------|-------|
 | A1 | 12-15 | Blue |
-| A2 | 24-27 | White |
-| A3 | 28-31 | Blue |
-| B1 | 40-43 | White |
+| A2 | 24-27 | Blue |
+| A3 | 28-31 | White |
+| B1 | 40-43 | Blue |
 | B2 | 44-47 | White |
-| B3 | 48-51 | Blue |
+| B3 | 48-51 | White |
 | C1 | 84-87 | White |
 | C2 | 88-91 | Blue |
 | C3 | 92-95 | Blue |
+
+Note: the `Panel*1`/`Panel*2`/`Panel*3` constant names don't always match physical left-to-right order on the board - on panel B specifically, `PanelB1` and `PanelB2` are physically swapped (confirmed by testing), while `PanelB3` matches. The colors above are correct for what you'll physically see; the constant names are just chain-wiring order, not a guarantee of visual position.
 
 Eyes are indices 96-97 and animate independently of the buttons (see `RandomEyes()`).
 
